@@ -48,28 +48,33 @@ def welcome():
     )
 
 #Percipitation Route
-@app.route("/api/v1.0/percipitation")
+@app.route("/api/v1.0/Percipitation")
 def Percipitation():
-    """Percipitation Analysis"""
+    """Percipitation Analysis of last 12 months."""
     session = Session(engine)
 
-    most_recent_date = session.query(measurement.date).order_by(measurement.date.desc()).first()
+    most_recent_date = session.query(measurement.date).order_by(measurement.date.desc()).first()[0]
     most_recent_date = dt.datetime.strptime(most_recent_date, '%Y-%m-%d')
-    query_date = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+    query_date = most_recent_date - dt.timedelta(days=365)
     
     results = session.query(measurement.date, measurement.prcp).filter(measurement.date>=query_date).all()
-    
+     
+    precipitation_data = session.query(measurement.date, measurement.prcp).\
+        filter(measurement.date >= query_date).\
+        order_by(measurement.date).all()
+
     session.close()  # Close session
 
-    prcp_data = {date: prcp for date, prcp in results}
+    prcp_dict = {date: prcp for date, prcp in results}
     
-    return jsonify(prcp_data)
+    return jsonify(prcp_dict)
 
 #Stations Route
-@app.route("/api/v1.0/stations")
+@app.route("/api/v1.0/Stations")
 def Stations ():
-    """List of Stations"""
+    """List of Stations."""
     session = Session(engine)
+
     stations = session.query(station.station).all()
     session.close()
 
@@ -77,27 +82,30 @@ def Stations ():
     return jsonify(stations_list)
 
 #TOBS Route
-@app.route("/api/v1.0/tobs")
+@app.route("/api/v1.0/TOBS")
 def TOBS ():
-    """Temp Observations for The Most Active Stations"""
+    """Temp Observations for The Most Active Stations."""
     session = Session(engine)
     most_active_stations = session.query(
-        measurement.station,func.count(measurement.station)).group_by(measurement.station).order_by(func.count(measurement.station).desc()).all()
+        measurement.station,func.count(measurement.station)).\
+        group_by(measurement.station).\
+        order_by(func.count(measurement.station).desc()).first()[0]
     
-    most_recent_date = session.query(measurement.date).order_by(measurement.date.desc()).first()
+    most_recent_date = session.query(measurement.date).order_by(measurement.date.desc()).first()[0]
     most_recent_date = dt.datetime.strptime(most_recent_date, '%Y-%m-%d')
-    query_date = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+    query_date = most_recent_date - dt.timedelta(days=365)
 
     past_12_mo = session.query(measurement.date, measurement.tobs).\
         filter(measurement.station == most_active_stations).\
         filter(measurement.date >= query_date).all()
 
     session.close()
+
     temp_list = list(np.ravel(past_12_mo))
     return jsonify(temp_list)
 
 #Start Route
-@app.route("/api/v1.0/<start>")
+@app.route("/api/v1.0/<tart>")
 def Temp_Start_Analysis (start=None):
     """TMIN, TAVG, TMAX for dates greater than or equal to the start date."""
     start = start.strip()  # Removes any extra spaces
@@ -134,6 +142,7 @@ def temp_range(start=None, end=None):
         return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
     
     session = Session(engine)
+
     temp_stats = session.query(
         func.min(measurement.tobs),
         func.avg(measurement.tobs),
